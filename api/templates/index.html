@@ -18,12 +18,44 @@
             min-height: 100vh;
         }
 
+        h1 {
+            color: #1f2937;
+            margin-bottom: 10px;
+        }
+
+        /* 制御パネルとフィルター */
+        .settings-panel {
+            width: 90%;
+            max-width: 400px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .settings-panel label, .settings-panel select {
+            font-size: 0.95rem;
+            color: #4b5563;
+        }
+
+        .settings-panel select {
+            width: 100%;
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid #d1d5db;
+            background-color: #f9fafb;
+        }
+
         /* カードコンテナ (フリップ効果用) */
         .card-container {
             perspective: 1000px;
             width: 90%;
             max-width: 400px;
-            height: 300px;
+            height: 350px; /* 高さ増 */
             margin: 20px 0;
         }
 
@@ -34,8 +66,8 @@
             position: relative;
             transform-style: preserve-3d;
             transition: transform 0.6s;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-            border-radius: 12px;
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+            border-radius: 16px;
             cursor: pointer;
         }
 
@@ -49,16 +81,26 @@
             height: 100%;
             backface-visibility: hidden;
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
-            border-radius: 12px;
+            border-radius: 16px;
             background-color: #ffffff;
-            padding: 20px;
+            padding: 25px;
             text-align: center;
             box-sizing: border-box;
-            word-wrap: break-word; /* 長い単語の折り返し */
+            overflow: hidden; /* 親のスクロールを制御 */
         }
-
+        
+        /* 長文対応のためのスクロール可能なコンテンツエリア */
+        .card-content-scroll {
+            width: 100%;
+            height: 100%;
+            padding: 10px 0;
+            overflow-y: auto; /* スクロール可能に */
+            -webkit-overflow-scrolling: touch; /* モバイルでのスクロールをスムーズに */
+        }
+        
         .card-face-front {
             font-size: 1.8rem;
             font-weight: bold;
@@ -74,7 +116,12 @@
             align-items: flex-start;
         }
         
-        /* 制御パネル */
+        .card-face-back .card-content-scroll {
+            font-size: 0.95rem;
+            color: #374151;
+        }
+
+        /* 制御ボタン */
         .controls {
             display: flex;
             gap: 15px;
@@ -89,6 +136,7 @@
             border-radius: 8px;
             cursor: pointer;
             transition: background-color 0.3s;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
         #next-btn {
@@ -113,28 +161,62 @@
         }
         .category-info {
             font-size: 0.8rem;
-            color: #007bff;
-            margin-bottom: 5px;
+            color: #10b981;
+            margin-bottom: 10px;
             font-weight: 600;
+            text-align: center;
+            width: 100%;
+        }
+        
+        /* ローディングアニメーション */
+        .loading {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
 <body>
     <h1>📚 FE試験 用語集</h1>
-    <p class="info">全 {{ total_cards }} 語</p>
 
+    <!-- 設定パネル (カテゴリーフィルターと裏表切り替え) -->
+    <div class="settings-panel">
+        <label for="category-select">カテゴリー選択:</label>
+        <select id="category-select" title="カテゴリーでフィルタリング"></select>
+        
+        <label for="direction-select">学習方向:</label>
+        <select id="direction-select" title="カードの裏表を切り替える">
+            <option value="term_to_def">用語 (表) → 説明 (裏)</option>
+            <option value="def_to_term">説明 (表) → 用語 (裏)</option>
+        </select>
+    </div>
+
+    <p class="info">全 <span id="total-cards-info">{{ total_cards }}</span> 語中、<span id="filtered-cards-info">0</span> 語を表示</p>
+
+    <!-- 暗記カードの表示エリア -->
     <div class="card-container">
         <div class="card" id="flashcard">
             <div class="card-face card-face-front">
-                <span id="card-content">カードをロード中...</span>
+                <div id="loading-spinner" class="loading"></div>
+                <span id="card-content" style="display:none;"></span>
             </div>
             <div class="card-face card-face-back">
                 <div class="category-info" id="back-category"></div>
-                <div id="card-definition"></div>
+                <div class="card-content-scroll">
+                    <div id="card-definition"></div>
+                </div>
             </div>
         </div>
     </div>
 
+    <!-- 制御ボタン -->
     <div class="controls">
         <button id="next-btn" class="btn">次のカードへ</button>
         <button id="shuffle-btn" class="btn">シャッフル</button>
@@ -145,53 +227,130 @@
         const contentElement = document.getElementById('card-content');
         const definitionElement = document.getElementById('card-definition');
         const categoryElement = document.getElementById('back-category');
+        const loadingSpinner = document.getElementById('loading-spinner');
         const nextButton = document.getElementById('next-btn');
         const shuffleButton = document.getElementById('shuffle-btn');
+        const categorySelect = document.getElementById('category-select');
+        const directionSelect = document.getElementById('direction-select');
+        const filteredCountInfo = document.getElementById('filtered-cards-info');
 
-        let cardData = []; // APIから取得した全カードデータ
-        let currentIndex = -1; // 現在表示しているカードのインデックス
+        let allCardData = [];     // APIから取得した全てのカードデータ
+        let filteredCardData = []; // 現在選択中のカテゴリーでフィルタリングされたカードデータ
+        let currentIndex = -1;    // 現在表示しているカードのインデックス
+        let currentDirection = 'term_to_def'; // 現在の学習方向
 
         // --- データ取得 ---
         async function fetchCardData() {
             try {
-                const response = await fetch('/api/cards');
-                cardData = await response.json();
+                loadingSpinner.style.display = 'block';
+                // 修正: 相対パス(/api/cards)から絶対パス(例: https://domain.com/api/cards)に変更し、URL解析エラーを回避します
+                const apiUrl = window.location.origin + '/api/cards';
+                const response = await fetch(apiUrl); 
+                allCardData = await response.json();
                 
-                if (cardData.length > 0) {
-                    showNextCard();
+                if (allCardData.length > 0) {
+                    populateCategories(allCardData);
+                    filterAndShuffleCards(); // 初期表示
                 } else {
                     contentElement.textContent = "カードデータがありません。";
+                    contentElement.style.display = 'block';
                 }
             } catch (error) {
                 console.error("カードデータの取得に失敗しました:", error);
                 contentElement.textContent = "データ取得エラー";
+                contentElement.style.display = 'block';
+            } finally {
+                loadingSpinner.style.display = 'none';
             }
+        }
+
+        // --- カテゴリーのドロップダウンリスト作成 ---
+        function populateCategories(data) {
+            const categories = new Set();
+            data.forEach(card => categories.add(card.category));
+
+            categorySelect.innerHTML = '';
+            
+            // 全て表示オプションを追加
+            const allOption = document.createElement('option');
+            allOption.value = 'all';
+            allOption.textContent = '全カテゴリーを表示';
+            categorySelect.appendChild(allOption);
+            
+            // 各カテゴリーを追加
+            Array.from(categories).sort().forEach(cat => {
+                const option = document.createElement('option');
+                option.value = cat;
+                option.textContent = cat;
+                categorySelect.appendChild(option);
+            });
+        }
+        
+        // --- フィルタリングとシャッフル ---
+        function filterAndShuffleCards() {
+            const selectedCategory = categorySelect.value;
+            
+            if (selectedCategory === 'all') {
+                filteredCardData = [...allCardData];
+            } else {
+                filteredCardData = allCardData.filter(card => card.category === selectedCategory);
+            }
+            
+            // シャッフルしてから、最初のカードを表示
+            shuffleCards(filteredCardData);
+            currentIndex = -1; 
+            filteredCountInfo.textContent = filteredCardData.length;
+            showNextCard();
         }
 
         // --- カード表示ロジック ---
         function showCard(index) {
-            if (index < 0 || index >= cardData.length) {
+            if (filteredCardData.length === 0) {
+                contentElement.textContent = "このカテゴリーにはカードがありません。";
+                definitionElement.textContent = "";
+                categoryElement.textContent = "";
+                contentElement.style.display = 'block';
                 return;
             }
             
-            const card = cardData[index];
+            const card = filteredCardData[index];
             
             // 既存のフリップ状態を解除
             cardElement.classList.remove('is-flipped');
+            contentElement.style.display = 'block';
 
-            // カードの表を更新 (用語)
-            contentElement.textContent = card.term;
+            let frontContent; // カードの表に表示する内容
+            let backContent;  // カードの裏に表示する内容
+
+            if (currentDirection === 'term_to_def') {
+                // 用語 (表) → 説明 (裏)
+                frontContent = card.term;
+                backContent = card.definition;
+            } else {
+                // 説明 (表) → 用語 (裏)
+                frontContent = card.definition;
+                backContent = card.term;
+            }
             
-            // カードの裏を更新 (説明とカテゴリ)
+            // カードの表を更新
+            contentElement.textContent = frontContent;
+            
+            // カードの裏を更新
             categoryElement.textContent = `[${card.category} > ${card.sub_category}]`;
-            definitionElement.textContent = card.definition;
+            definitionElement.textContent = backContent;
+
+            // スクロール位置をリセット
+            const scrollContainer = document.querySelector('.card-content-scroll');
+            if (scrollContainer) {
+                scrollContainer.scrollTop = 0;
+            }
         }
 
         function showNextCard() {
-            if (cardData.length === 0) return;
+            if (filteredCardData.length === 0) return;
             
             // 次のインデックスへ（配列の終端に達したら最初に戻る）
-            currentIndex = (currentIndex + 1) % cardData.length;
+            currentIndex = (currentIndex + 1) % filteredCardData.length;
             
             showCard(currentIndex);
         }
@@ -200,7 +359,7 @@
             // Fisher-Yates (Knuth) シャッフルアルゴリズム
             for (let i = array.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
-                [array[i], array[j]] = [array[j], array[i]];
+                [array[i], array[j]] = [array[i], array[j]];
             }
         }
 
@@ -213,17 +372,30 @@
 
         // 次のカードボタン
         nextButton.addEventListener('click', (e) => {
-            e.stopPropagation(); // カードフリップと競合しないように
+            e.stopPropagation(); 
             showNextCard();
         });
         
         // シャッフルボタン
         shuffleButton.addEventListener('click', (e) => {
             e.stopPropagation();
-            shuffleCards(cardData);
+            shuffleCards(filteredCardData);
             currentIndex = -1; // シャッフル後、最初から表示
             showNextCard();
         });
+
+        // カテゴリーが変更された時
+        categorySelect.addEventListener('change', () => {
+            filterAndShuffleCards();
+        });
+        
+        // 学習方向が変更された時
+        directionSelect.addEventListener('change', (e) => {
+            currentDirection = e.target.value;
+            // 方向を変更した後、同じカードを新しい方向で表示
+            showCard(currentIndex);
+        });
+
 
         // アプリケーション開始
         fetchCardData();

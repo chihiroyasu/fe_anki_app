@@ -87,7 +87,6 @@
             border-radius: 16px;
             background-color: #ffffff;
             padding: 25px;
-            text-align: center;
             box-sizing: border-box;
             overflow: hidden; /* 親のスクロールを制御 */
         }
@@ -99,14 +98,32 @@
             padding: 10px 0;
             overflow-y: auto; /* スクロール可能に */
             -webkit-overflow-scrolling: touch; /* モバイルでのスクロールをスムーズに */
+            display: flex; /* 中央寄せのために追加 */
+            align-items: center;
+            justify-content: center;
+            flex-grow: 1; /* 親要素の残りの高さを利用 */
+        }
+
+        .card-content-scroll > #card-content,
+        .card-content-scroll > #card-definition {
+            padding: 0 10px; /* 左右の余白 */
+            text-align: center; /* 表面のコンテンツを中央に */
+            width: 100%;
+            box-sizing: border-box;
         }
         
+        /* 表面のスタイル */
         .card-face-front {
+            /* flex-direction: column; が親にあるので、ここでは中央揃えのみ */
+            text-align: center;
+        }
+        .card-face-front .card-content-scroll {
             font-size: 1.8rem;
             font-weight: bold;
             color: #007bff;
         }
 
+        /* 裏面のスタイル */
         .card-face-back {
             transform: rotateY(180deg);
             font-size: 1.1rem;
@@ -116,10 +133,19 @@
             align-items: flex-start;
         }
         
+        /* 裏面のスクロールコンテナ内のテキストスタイル */
         .card-face-back .card-content-scroll {
             font-size: 0.95rem;
             color: #374151;
+            /* 裏面はテキストを左寄せにするため中央寄せを解除 */
+            align-items: flex-start; 
+            justify-content: flex-start;
         }
+        /* 裏面コンテンツの幅をリセット */
+        .card-face-back .card-content-scroll > #card-definition {
+            text-align: left;
+        }
+
 
         /* 制御ボタン */
         .controls {
@@ -203,9 +229,13 @@
     <!-- 暗記カードの表示エリア -->
     <div class="card-container">
         <div class="card" id="flashcard">
+            <!-- 修正箇所: 表側もスクロールコンテナでラップ -->
             <div class="card-face card-face-front">
                 <div id="loading-spinner" class="loading"></div>
-                <span id="card-content" style="display:none;"></span>
+                <!-- 修正: card-content-scrollでラップ -->
+                <div class="card-content-scroll">
+                    <span id="card-content" style="display:none;"></span>
+                </div>
             </div>
             <div class="card-face card-face-back">
                 <div class="category-info" id="back-category"></div>
